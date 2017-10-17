@@ -1,6 +1,7 @@
 *.pyc
 *.swp
 *.pdf
+*.log
 .ipynb_checkpoints
 TODO.md
 tests/
