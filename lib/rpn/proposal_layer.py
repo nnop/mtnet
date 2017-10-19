@@ -181,8 +181,8 @@ class ProposalLayer(caffe.Layer):
         keep = nms(np.hstack((proposals, scores)), nms_thresh)
         if post_nms_topN > 0:
             keep = keep[:post_nms_topN]
-        assert len(keep) == post_nms_topN, \
-                '{} vs {}'.format(len(keep), post_nms_topN)
+        # assert len(keep) == post_nms_topN, \
+        #         '{} vs {}'.format(len(keep), post_nms_topN)
         proposals = proposals[keep, :]
         return proposals
 

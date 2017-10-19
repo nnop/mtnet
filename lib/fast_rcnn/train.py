@@ -26,7 +26,7 @@ class SolverWrapper(object):
     """
 
     def __init__(self, solver_prototxt, roidb, output_dir,
-                 pretrained_model=None):
+                 pretrained_model=None, snapshot=None):
         """Initialize the SolverWrapper."""
         self.output_dir = output_dir
 
@@ -36,8 +36,13 @@ class SolverWrapper(object):
             and cfg.TRAIN.BBOX_NORMALIZE_TARGETS_PRECOMPUTED)
 
         self.solver = caffe.SGDSolver(solver_prototxt)
-        # copy pretrained weights
-        if pretrained_model is not None:
+
+        if snapshot is not None:
+            # restore from snapshot
+            print ('Restoring from {:s}').format(snapshot)
+            self.solver.restore(snapshot)
+        elif pretrained_model is not None:
+            # copy pretrained weights
             print ('Loading pretrained model '
                    'weights from {:s}').format(pretrained_model)
             self.solver.net.copy_from(pretrained_model)
@@ -47,24 +52,6 @@ class SolverWrapper(object):
             text_format.Merge(f.read(), self.solver_param)
 
         self.solver.net.layers[0].set_roidb(roidb)
-
-    def snapshot(self):
-        """Take a snapshot of the network after unnormalizing the learned
-        bounding-box regression weights. This enables easy use at test-time.
-        """
-        net = self.solver.net
-
-        # save original values
-        infix = ('_' + cfg.TRAIN.SNAPSHOT_INFIX
-                 if cfg.TRAIN.SNAPSHOT_INFIX != '' else '')
-        filename = (self.solver_param.snapshot_prefix + infix +
-                    '_iter_{:d}'.format(self.solver.iter) + '.caffemodel')
-        filename = os.path.join(self.output_dir, filename)
-
-        net.save(str(filename))
-        print 'Wrote snapshot to: {:s}'.format(filename)
-
-        return filename
 
     def _show_batch_images(self):
         n_batch = cfg.TRAIN.IMS_PER_BATCH
@@ -78,9 +65,7 @@ class SolverWrapper(object):
 
     def train_model(self, max_iters):
         """Network training loop."""
-        last_snapshot_iter = -1
         timer = Timer()
-        model_paths = []
         while self.solver.iter < max_iters:
             # Make one SGD update
             timer.tic()
@@ -88,20 +73,16 @@ class SolverWrapper(object):
                 self.solver.step(1)
             except:
                 t, v, tb = sys.exc_info()
-                self.snapshot()
+                self.solver.snapshot()
                 self._show_batch_images()
                 raise t, v, tb
             timer.toc()
+
             if self.solver.iter % (10 * self.solver_param.display) == 0:
                 print 'speed: {:.3f}s / iter'.format(timer.average_time)
 
             if self.solver.iter % cfg.TRAIN.SNAPSHOT_ITERS == 0:
-                last_snapshot_iter = self.solver.iter
-                model_paths.append(self.snapshot())
-
-        if last_snapshot_iter != self.solver.iter:
-            model_paths.append(self.snapshot())
-        return model_paths
+                self.solver.snapshot()
 
 def get_training_roidb(imdb):
     """Returns a roidb (Region of Interest database) for use in training."""
@@ -112,13 +93,12 @@ def get_training_roidb(imdb):
     return imdb.roidb
 
 def train_net(solver_prototxt, roidb, output_dir,
-              pretrained_model=None, max_iters=40000):
+              pretrained_model=None, snapshot=None, max_iters=40000):
     """Train a Fast R-CNN network."""
 
     sw = SolverWrapper(solver_prototxt, roidb, output_dir,
-                       pretrained_model=pretrained_model)
+                       pretrained_model=pretrained_model, snapshot=snapshot)
 
     print 'Solving...'
-    model_paths = sw.train_model(max_iters)
+    sw.train_model(max_iters)
     print 'done solving'
-    return model_paths
