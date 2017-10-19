@@ -28,6 +28,7 @@ class ProposalLayer(caffe.Layer):
         layer_params = json.loads(self.param_str)
 
         self._feat_stride = layer_params['feat_stride']
+        self._has_cls = layer_params.get('has_cls', False)
         anchor_scales = layer_params.get('scales', (8, 16, 32))
         self._anchors = generate_anchors(scales=np.array(anchor_scales))
         self._num_anchors = self._anchors.shape[0]
@@ -43,9 +44,9 @@ class ProposalLayer(caffe.Layer):
         top[0].reshape(1, 5)
         if self.phase == caffe.TRAIN:
             # rois_labels
-            top[1].reshape(1, 1)
-            # rois gt assignments
-            top[2].reshape(1, 1)
+            top[1].reshape(1,)
+            # rois_gt_assignments
+            top[2].reshape(1,)
 
 
     def forward(self, bottom, top):
@@ -79,7 +80,10 @@ class ProposalLayer(caffe.Layer):
         bbox_deltas = bottom[1].data
         im_info = bottom[2].data[0, :]
 
+        # generate RPN proposals
         proposals = self._generate_rpn_rois(scores, bbox_deltas, im_info)
+
+        # sample proposals according to ground truth bboxes
         if self.phase == caffe.TRAIN:
             gt_boxes = bottom[3].data
             proposals, labels, gt_assignment = self._match_gt(proposals, gt_boxes)
@@ -177,10 +181,20 @@ class ProposalLayer(caffe.Layer):
         keep = nms(np.hstack((proposals, scores)), nms_thresh)
         if post_nms_topN > 0:
             keep = keep[:post_nms_topN]
-        assert len(keep) == post_nms_topN
+        assert len(keep) == post_nms_topN, \
+                '{} vs {}'.format(len(keep), post_nms_topN)
         proposals = proposals[keep, :]
-        scores = scores[keep]
         return proposals
+
+    def _compute_sample_num(self, n_pos, n_neg):
+        batch_size = cfg.TRAIN.BATCH_SIZE
+        # detection number
+        n_sel_pos = min(n_pos, cfg.TRAIN.FG_FRACTION * batch_size)
+        n_sel_neg = min(n_neg, batch_size - n_sel_pos)
+        if self._has_cls:
+            n_cls_pos = min(n_pos, batch_size)
+            n_sel_pos = max(n_cls_pos, n_sel_pos)
+        return int(n_sel_pos), int(n_sel_neg)
 
     def _match_gt(self, proposals, gt_boxes):
         assert proposals.shape[1] == 4
@@ -190,43 +204,31 @@ class ProposalLayer(caffe.Layer):
                 gt_boxes.astype(np.float, copy=False))
         max_overlaps = overlaps.max(axis=1)
         max_overlap_inds = overlaps.argmax(axis=1)
-        # assign labels
-        labels = np.empty((num_proposals, 1))
-        labels.fill(-1)
-
         pos_inds = np.where(max_overlaps > cfg.TRAIN.FG_THRESH)[0]
-        neg_inds = np.where(np.logical_and(max_overlaps < cfg.TRAIN.BG_THRESH_HI,
+        neg_inds = np.where(np.logical_and(
+            max_overlaps < cfg.TRAIN.BG_THRESH_HI,
             max_overlaps >= cfg.TRAIN.BG_THRESH_LO))[0]
-        labels[pos_inds, 0] = 1
-        labels[neg_inds, 0] = 0
-        # select samples
-        num_pos_all = len(pos_inds)
-        num_neg_all = len(neg_inds)
-        batch_size = cfg.TRAIN.BATCH_SIZE
-        num_pos_keep = int(min(num_pos_all, batch_size))
-        num_neg_keep = int(min(max((1 - cfg.TRAIN.FG_FRACTION) * batch_size,
-                batch_size - num_pos_all), num_neg_all))
-        if DEBUG:
-            print '-------'
-            print 'proposals:', len(proposals)
-            print 'num_pos:', len(pos_inds)
-            print 'num_neg:', len(neg_inds)
-            print 'num_ignore:', len(np.where(labels == -1)[0])
-            print '-------'
-            print 'batch_size:', batch_size
-            print 'keep_pos:', num_pos_keep
-            print 'keep_neg:', num_neg_keep
-            print '-------'
-        if num_pos_all:
-            pos_inds = npr.choice(pos_inds, size=num_pos_keep, replace=False)
-        if num_neg_all:
-            neg_inds = npr.choice(neg_inds, size=num_neg_keep, replace=False)
 
+        # select samples
+        n_pos = len(pos_inds)
+        n_neg = len(neg_inds)
+        n_sel_pos, n_sel_neg = self._compute_sample_num(n_pos, n_neg)
+        n_keep = n_sel_pos + n_sel_neg
+
+        pos_inds = npr.choice(pos_inds, size=n_sel_pos, replace=False)
+        neg_inds = npr.choice(neg_inds, size=n_sel_neg, replace=False)
         keep_inds = np.append(pos_inds, neg_inds)
+        assert len(keep_inds) == n_keep
+
+        # assign labels
+        labels = np.empty((n_keep,), dtype=np.float32)
+        labels.fill(-1)
+        labels[:n_sel_pos] = 1
+        labels[n_sel_pos:] = 0
+
         proposals = proposals[keep_inds].astype(np.float32)
-        labels = labels[keep_inds].astype(np.float32)
-        gt_assignment = np.empty((len(keep_inds), 1)).astype(np.float32)
+        gt_assignment = np.empty((n_keep,), dtype = np.float32)
         gt_assignment.fill(-1)
-        gt_assignment[:len(pos_inds), 0] = max_overlap_inds[pos_inds]
+        gt_assignment[:n_sel_pos] = max_overlap_inds[pos_inds]
 
         return proposals, labels, gt_assignment

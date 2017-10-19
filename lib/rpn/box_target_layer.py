@@ -38,24 +38,25 @@ class BoxTargetLayer(caffe.Layer):
         assert rois_boxes.shape[1] == 5, rois_boxes.shape
         assert np.all(rois_boxes[:, 0] == 0), rois_boxes
 
-        bbox_targets = np.zeros((num_rois, 4)).astype(np.float32)
-        bbox_inside_weights = np.zeros((num_rois, 4)).astype(np.float32)
-        bbox_outside_weights = np.zeros((num_rois, 4)).astype(np.float32)
+        bbox_targets = np.zeros((num_rois, 4), dtype = np.float32)
+        bbox_inside_weights = np.zeros((num_rois, 4), dtype = np.float32)
+        bbox_outside_weights = np.zeros((num_rois, 4), dtype = np.float32)
 
         # sample rois
         pos_inds = np.where(rois_labels == 1)[0]
         n_pos = len(pos_inds)
-        if n_pos:
-            n_sel_pos = min(n_pos, cfg.TRAIN.BATCH_SIZE)
-            fg_sel_inds = npr.choice(pos_inds, size=n_sel_pos, replace=False)
-            src_boxes = rois_boxes[fg_sel_inds, 1:]
-            dst_boxes = gt_boxes[gt_assignment[fg_sel_inds, 0]]
+        if n_pos > 0:
+            n_sel_pos = int(min(n_pos, cfg.TRAIN.BATCH_SIZE))
+            pos_sel_inds = npr.choice(pos_inds, size=n_sel_pos, replace=False)
+            src_boxes = rois_boxes[pos_sel_inds, 1:]
+            dst_boxes = gt_boxes[gt_assignment[pos_sel_inds]]
             targets = bbox_transform(src_boxes, dst_boxes)
             if cfg.TRAIN.BBOX_NORMALIZE_TARGETS_PRECOMPUTED:
                 targets = ((targets - np.array(cfg.TRAIN.BBOX_NORMALIZE_MEANS))
                     / np.array(cfg.TRAIN.BBOX_NORMALIZE_STDS))
-            bbox_targets[fg_sel_inds] = targets
-            bbox_inside_weights[fg_sel_inds] = cfg.TRAIN.BBOX_INSIDE_WEIGHTS
+                assert np.all(targets < 10), targets
+            bbox_targets[pos_sel_inds] = targets
+            bbox_inside_weights[pos_sel_inds] = cfg.TRAIN.BBOX_INSIDE_WEIGHTS
             bbox_outside_weights[bbox_inside_weights > 0] = 1.
 
         top[0].reshape(*(bbox_targets.shape))

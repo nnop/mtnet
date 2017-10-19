@@ -19,6 +19,10 @@ import argparse
 import pprint
 import numpy as np
 import sys
+import logging
+from utils.logger import config_logger
+
+config_logger()
 
 def parse_args():
     """
