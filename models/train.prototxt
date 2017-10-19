@@ -406,7 +406,7 @@ layer {
   python_param {
     module: "rpn.anchor_target_layer"
     layer: "AnchorTargetLayer"
-    param_str: '{"feat_stride": 16, "scales": [2, 4, 8], "allow_border": 32}'
+    param_str: '{"feat_stride": 16, "scales": [2, 4, 8]}'
   }
 }
 # }}}
@@ -472,7 +472,7 @@ layer {
   python_param {
     module: "rpn.proposal_layer"
     layer: "ProposalLayer"
-    param_str: '{"feat_stride": 16, "scales": [2, 4, 8]}'
+    param_str: '{"feat_stride": 16, "scales": [2, 4, 8], "use_cls": true}'
   }
 }
 # }}}
@@ -483,7 +483,7 @@ layer {
   type: "ROIPooling"
   bottom: "conv5_3"
   bottom: "rois/body"
-  top: "pool5/body"
+  top: "pool5"
   roi_pooling_param {
     pooled_w: 7
     pooled_h: 7
@@ -491,38 +491,38 @@ layer {
   }
 }
 layer {
-  name: "fc6/body"
+  name: "fc6"
   type: "InnerProduct"
-  bottom: "pool5/body"
-  top: "fc6/body"
+  bottom: "pool5"
+  top: "fc6"
   param { lr_mult: 1 }
   param { lr_mult: 2 }
   inner_product_param {
-    num_output: 512   # TODO 1024
+    num_output: 4096   # TODO 1024
   }
 }
 layer {
-  name: "fc6/body"
+  name: "relu6"
   type: "ReLU"
-  bottom: "fc6/body"
-  top: "fc6/body"
+  bottom: "fc6"
+  top: "fc6"
 }
 layer {
-  name: "fc7/body"
+  name: "fc7"
   type: "InnerProduct"
-  bottom: "fc6/body"
-  top: "fc7/body"
+  bottom: "fc6"
+  top: "fc7"
   param { lr_mult: 1 }
   param { lr_mult: 2 }
   inner_product_param {
-    num_output: 512   # TODO 1024
+    num_output: 4096   # TODO 1024
   }
 }
 layer {
-  name: "fc7/body"
+  name: "relu7"
   type: "ReLU"
-  bottom: "fc7/body"
-  top: "fc7/body"
+  bottom: "fc7"
+  top: "fc7"
 }
 # }}}
 
@@ -531,7 +531,7 @@ layer {
 layer {
   name: "det_scores/body"
   type: "InnerProduct"
-  bottom: "fc7/body"
+  bottom: "fc7"
   top: "det_scores/body"
   param { lr_mult: 1 }
   param { lr_mult: 2 }
@@ -574,7 +574,7 @@ layer {
 layer {
   name: "det_bbox_preds/body"
   type: "InnerProduct"
-  bottom: "fc7/body"
+  bottom: "fc7"
   top: "det_bbox_preds/body"
   param { lr_mult: 1 }
   param { lr_mult: 2 }
@@ -618,7 +618,7 @@ layer {
 layer {
   name: "stu_scores/body"
   type: "InnerProduct"
-  bottom: "fc7/body"
+  bottom: "fc7"
   top: "stu_scores/body"
   param { lr_mult: 1 }
   param { lr_mult: 2 }
@@ -647,6 +647,7 @@ layer {
   type: "SoftmaxWithLoss"
   bottom: "stu_scores/body"
   bottom: "stu_labels/body"
+  top: "loss_stu_cls/body"
   propagate_down: 1
   propagate_down: 0
   loss_weight: 1
@@ -662,10 +663,12 @@ layer {
 layer {
   name: "pose_scores/body"
   type: "InnerProduct"
-  bottom: "fc7/body"
+  bottom: "fc7"
   top: "pose_scores/body"
+  param { lr_mult: 1 }
+  param { lr_mult: 2 }
   inner_product_param {
-    num_output: 2
+    num_output: 5
     weight_filler { type: "gaussian" std: 0.01 }
     bias_filler { type: "constant" value: 0 }
   }
@@ -699,3 +702,4 @@ layer {
   }
 }
 # }}}
+
