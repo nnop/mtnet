@@ -13,11 +13,11 @@ set -e
 export PYTHONUNBUFFERED="True"
 
 LOG="experiments/train.log"
-exec &> >(tee -a "$LOG")
+exec &> >(tee "$LOG")
 echo Logging output to "$LOG"
 
-time ./tools/train_net.py --gpu 0 \
-  --solver models/solver.prototxt \
+time ./tools/train_net.py --gpu 1 \
+  --solver models/body/solver.prototxt \
   --weights data/imagenet_models/VGG16.v2.caffemodel \
   --imdb ftdata_train \
   --iters 70000 \

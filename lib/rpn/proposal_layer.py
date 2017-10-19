@@ -215,8 +215,10 @@ class ProposalLayer(caffe.Layer):
         n_sel_pos, n_sel_neg = self._compute_sample_num(n_pos, n_neg)
         n_keep = n_sel_pos + n_sel_neg
 
-        pos_inds = npr.choice(pos_inds, size=n_sel_pos, replace=False)
-        neg_inds = npr.choice(neg_inds, size=n_sel_neg, replace=False)
+        if n_pos > 0:
+            pos_inds = npr.choice(pos_inds, size=n_sel_pos, replace=False)
+        if n_neg > 0:
+            neg_inds = npr.choice(neg_inds, size=n_sel_neg, replace=False)
         keep_inds = np.append(pos_inds, neg_inds)
         assert len(keep_inds) == n_keep
 

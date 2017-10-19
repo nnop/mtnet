@@ -9,7 +9,7 @@ class BoxTargetLayer(caffe.Layer):
         """
         bottoms:
             0: rois_labels
-            1: rois_gt_assignment
+            1: rois_gt_assignments
             2: rois_boxes as src boxes
             3: gt_boxes as dst boxes
 
@@ -27,12 +27,12 @@ class BoxTargetLayer(caffe.Layer):
 
     def forward(self, bottom, top):
         rois_labels = bottom[0].data
-        gt_assignment = bottom[1].data.astype(np.int32)
+        gt_assignments = bottom[1].data.astype(np.int32)
         rois_boxes = bottom[2].data
         gt_boxes = bottom[3].data
         num_rois = len(rois_labels)
-        assert len(gt_assignment) == num_rois, \
-                "{} vs {}".format(len(gt_assignment), num_rois)
+        assert len(gt_assignments) == num_rois, \
+                "{} vs {}".format(len(gt_assignments), num_rois)
         assert len(rois_boxes) == num_rois, \
                 "{} vs {}".format(len(rois_boxes), num_rois)
         assert rois_boxes.shape[1] == 5, rois_boxes.shape
@@ -46,15 +46,17 @@ class BoxTargetLayer(caffe.Layer):
         pos_inds = np.where(rois_labels == 1)[0]
         n_pos = len(pos_inds)
         if n_pos > 0:
-            n_sel_pos = int(min(n_pos, cfg.TRAIN.BATCH_SIZE))
-            pos_sel_inds = npr.choice(pos_inds, size=n_sel_pos, replace=False)
-            src_boxes = rois_boxes[pos_sel_inds, 1:]
-            dst_boxes = gt_boxes[gt_assignment[pos_sel_inds]]
-            targets = bbox_transform(src_boxes, dst_boxes)
+            # dst boxes
+            dst_boxes = np.zeros((num_rois, 4), dtype=np.float32)
+            dst_boxes[pos_inds] = gt_boxes[gt_assignments[pos_inds]]
+            pos_sel_inds = np.where(np.any(dst_boxes > 0., axis=1))[0]
+            # targets
+            targets = bbox_transform(rois_boxes[pos_sel_inds, 1:],
+                    dst_boxes[pos_sel_inds])
             if cfg.TRAIN.BBOX_NORMALIZE_TARGETS_PRECOMPUTED:
                 targets = ((targets - np.array(cfg.TRAIN.BBOX_NORMALIZE_MEANS))
                     / np.array(cfg.TRAIN.BBOX_NORMALIZE_STDS))
-                assert np.all(targets < 10), targets
+                # assert np.all(targets < 10), targets
             bbox_targets[pos_sel_inds] = targets
             bbox_inside_weights[pos_sel_inds] = cfg.TRAIN.BBOX_INSIDE_WEIGHTS
             bbox_outside_weights[bbox_inside_weights > 0] = 1.
