@@ -129,7 +129,6 @@ class ftdata(imdb):
         im_wid, im_hei = PIL.Image.open(im_path).size
         # anno info
         filename = os.path.join(self._data_path, 'Annotations', index + '.json')
-        logging.debug('loading ' + filename)
         with open(filename) as f:
             anno_info = json.load(f)
         objs = anno_info['persons']

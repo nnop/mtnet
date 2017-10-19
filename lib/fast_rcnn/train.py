@@ -11,6 +11,7 @@ import caffe
 from utils.timer import Timer
 import numpy as np
 import os
+import sys
 import logging
 from caffe.proto import caffe_pb2
 from google.protobuf import text_format
@@ -47,38 +48,11 @@ class SolverWrapper(object):
 
         self.solver.net.layers[0].set_roidb(roidb)
 
-    def _unnormalize_bbox_params(self, blob_name, num_classes):
-        net = self.solver.net
-        orig_0 = net.params[blob_name][0].data.copy()
-        orig_1 = net.params[blob_name][1].data.copy()
-
-        bbox_means = np.tile(np.array(cfg.TRAIN.BBOX_NORMALIZE_MEANS),
-                (num_classes, 1))
-        bbox_stds = np.tile(np.array(cfg.TRAIN.BBOX_NORMALIZE_STDS),
-                (num_classes, 1))
-
-        # scale and shift with bbox reg unnormalization; then save snapshot
-        net.params[blob_name][0].data[...] = \
-                (net.params[blob_name][0].data * bbox_stds[:, np.newaxis])
-        net.params[blob_name][1].data[...] = \
-                (net.params[blob_name][1].data * bbox_stds + self.bbox_means)
-
-        return orig_0, orig_1
-
-    def _restore_bbox_params(self, blob_name, orig_weights):
-        assert len(orig_weights) == 2
-        net = self.solver.net
-        net.params[blob_name][0].data[...] = orig_weights[0]
-        net.params[blob_name][1].data[...] = orig_weights[1]
-
     def snapshot(self):
         """Take a snapshot of the network after unnormalizing the learned
         bounding-box regression weights. This enables easy use at test-time.
         """
         net = self.solver.net
-        blob_name = 'bbox_pred/body'
-        num_body_poses = len(ftdata._pose_classes)
-        orig_weights = self._unnormalize_bbox_params(blob_name, num_body_poses)
 
         # save original values
         infix = ('_' + cfg.TRAIN.SNAPSHOT_INFIX
@@ -90,9 +64,17 @@ class SolverWrapper(object):
         net.save(str(filename))
         print 'Wrote snapshot to: {:s}'.format(filename)
 
-        # restore net to original state
-        self._restore_bbox_params(blob_name, orig_weights)
         return filename
+
+    def _show_batch_images(self):
+        n_batch = cfg.TRAIN.IMS_PER_BATCH
+        data_layer = self.solver.net.layers[0]
+        cur = data_layer._cur - n_batch
+        db_inds = data_layer._perm[cur:cur + n_batch]
+        for i in db_inds:
+            logging.info('{}, flipped: {}'.format(
+                data_layer._roidb[i]['image'],
+                data_layer._roidb[i]['flipped']))
 
     def train_model(self, max_iters):
         """Network training loop."""
@@ -102,7 +84,13 @@ class SolverWrapper(object):
         while self.solver.iter < max_iters:
             # Make one SGD update
             timer.tic()
-            self.solver.step(1)
+            try:
+                self.solver.step(1)
+            except:
+                t, v, tb = sys.exc_info()
+                self.snapshot()
+                self._show_batch_images()
+                raise t, v, tb
             timer.toc()
             if self.solver.iter % (10 * self.solver_param.display) == 0:
                 print 'speed: {:.3f}s / iter'.format(timer.average_time)

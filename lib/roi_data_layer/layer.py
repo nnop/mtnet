@@ -23,10 +23,10 @@ from utils.blob import prep_im_for_blob, im_list_to_blob
 class RoIDataLayer(caffe.Layer):
     """Fast R-CNN data layer used for training."""
 
-    def set_roidb(self, roidb):
+    def set_roidb(self, roidb, init_cur=0, shuffle=True):
         """Set the roidb to be used by this layer during training."""
         self._roidb = roidb
-        self._shuffle_roidb_inds()
+        self._shuffle_roidb_inds(init_cur, shuffle)
 
     def setup(self, bottom, top):
         """Setup the RoIDataLayer.
@@ -78,10 +78,13 @@ class RoIDataLayer(caffe.Layer):
         """Reshaping happens during the call to forward."""
         pass
 
-    def _shuffle_roidb_inds(self):
+    def _shuffle_roidb_inds(self, init_cur=0, shuffle=True):
         """Randomly permute the training roidb."""
-        self._perm = np.random.permutation(np.arange(len(self._roidb)))
-        self._cur = 0
+        if shuffle:
+            self._perm = np.random.permutation(np.arange(len(self._roidb)))
+        else:
+            self._perm = np.arange(len(self._roidb))
+        self._cur = init_cur
 
     def _get_next_minibatch_inds(self):
         """Return the roidb indices for the next minibatch."""
@@ -118,7 +121,6 @@ class RoIDataLayer(caffe.Layer):
         blobs['im_info'] = np.array([[hei, wid, scale]], dtype=np.float32)
         # body_boxes
         im_roi = minibatch_db[0]
-        logging.info('Flipped: {}'.format(im_roi['flipped']))
         blobs['gt_body'] = np.hstack((
             im_roi['body_boxes'] * scale,
             im_roi['body_classes'][:, None],
@@ -138,7 +140,8 @@ def _get_image_blob(roidb, scale_inds):
     processed_ims = []
     im_scales = []
     for i in xrange(num_images):
-        logging.info(roidb[i]['image'])
+        logging.debug('{}, Flipped: {}' \
+                .format(roidb[i]['image'], roidb[i]['flipped']))
         im = cv2.imread(roidb[i]['image'])
         if roidb[i]['flipped']:
             im = im[:, ::-1, :]
