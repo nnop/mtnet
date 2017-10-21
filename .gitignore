@@ -3,7 +3,10 @@
 *.pdf
 *.log
 .ipynb_checkpoints
+*.caffemodel
+*.solverstate
 TODO.md
 tests/
 data/
+output
 output/

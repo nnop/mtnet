@@ -12,6 +12,6 @@ weight_decay: 0.0005
 # function
 snapshot: 0
 # We still use the snapshot prefix, though
-snapshot_prefix: "vgg16_end2end_bodyhead"
+snapshot_prefix: "output/bodyhead/vgg16_end2end_bodyhead"
 iter_size: 2
 clip_gradients: 200
