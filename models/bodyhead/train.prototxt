@@ -484,7 +484,7 @@ layer {
   python_param {
     module: "rpn.proposal_layer"
     layer: "ProposalLayer"
-    param_str: '{"feat_stride": 16, "scales": [2, 4, 8], "use_cls": true}'
+    param_str: '{"feat_stride": 16, "scales": [2, 4, 8], "has_extra": true}'
   }
 }
 # }}}
@@ -906,7 +906,7 @@ layer {
   python_param {
     module: "rpn.proposal_layer"
     layer: "ProposalLayer"
-    param_str: '{"feat_stride": 16, "scales": [1, 3, 5], "use_cls": true}'
+    param_str: '{"feat_stride": 16, "scales": [1, 3, 5], "has_extra": true}'
   }
 }
 # }}}

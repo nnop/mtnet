@@ -28,7 +28,7 @@ class ProposalLayer(caffe.Layer):
         layer_params = json.loads(self.param_str)
 
         self._feat_stride = layer_params['feat_stride']
-        self._has_cls = layer_params.get('has_cls', False)
+        self._has_extra = layer_params.get('has_extra', False)
         anchor_scales = layer_params.get('scales', (8, 16, 32))
         self._anchors = generate_anchors(scales=np.array(anchor_scales))
         self._num_anchors = self._anchors.shape[0]
@@ -68,11 +68,14 @@ class ProposalLayer(caffe.Layer):
         if self.phase == caffe.TRAIN:
             assert len(bottom) == 4
             assert len(top) == 3
+            # gt_boxes
             assert bottom[3].shape[1] == 4
         else:
             assert len(bottom) == 3
             assert len(top) == 1
-            assert bottom[2].shape[1] == 4
+        # im_info
+        assert bottom[2].shape[1] == 3, \
+                'im_info blob shape wrong: {}'.format(bottom[2].shape)
 
         # the first set of _num_anchors channels are bg probs
         # the second set are the fg probs, which we want
@@ -191,8 +194,10 @@ class ProposalLayer(caffe.Layer):
         # detection number
         n_sel_pos = min(n_pos, cfg.TRAIN.FG_FRACTION * batch_size)
         n_sel_neg = min(n_neg, batch_size - n_sel_pos)
-        if self._has_cls:
+        if self._has_extra:
+            # extra sample number
             n_cls_pos = min(n_pos, batch_size)
+            # use maximum of detection and extra number
             n_sel_pos = max(n_cls_pos, n_sel_pos)
         return int(n_sel_pos), int(n_sel_neg)
 
