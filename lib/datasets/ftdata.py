@@ -18,15 +18,16 @@ from fast_rcnn.config import cfg
 from fast_rcnn.bbox_transform import clip_boxes
 
 class ftdata(imdb):
+    _body_classes = ('listen', 'write', 'handup',
+                          'positive', 'negative')
+    _head_classes = ('smile', 'openmouth', 'netural',
+                          'bowhead', 'twist', 'other')
+
     def __init__(self, image_set, data_path=None):
         imdb.__init__(self, 'ftdata_' + image_set)
         self._image_set = image_set
         self._data_path = self._get_default_path() if data_path is None \
                             else data_path
-        self._body_classes = ('listen', 'write', 'handup',
-                              'positive', 'negative')
-        self._head_classes = ('smile', 'openmouth', 'netural',
-                              'bowhead', 'twist', 'other')
         self._image_ext = '.jpg'
         self._image_index = self._load_image_set_index()
         self._roidb_handler = self.gt_roidb
