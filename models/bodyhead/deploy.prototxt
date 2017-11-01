@@ -426,7 +426,7 @@ layer {
   }
 }
 layer {
-  name: "fc6-body"
+  name: "fc6"
   type: "InnerProduct"
   bottom: "pool5-body"
   top: "fc6-body"
@@ -434,7 +434,7 @@ layer {
   param { name: "fc6_b" lr_mult: 2 }
   inner_product_param {
     num_output: 4096   # TODO 1024
-    weight_filler { type: "msra" }
+    weight_filler { type: "gaussian" std: 0.01 }
     bias_filler { type: "constant" }
   }
 }
@@ -445,7 +445,7 @@ layer {
   top: "fc6-body"
 }
 layer {
-  name: "fc7-body"
+  name: "fc7"
   type: "InnerProduct"
   bottom: "fc6-body"
   top: "fc7-body"
@@ -453,7 +453,7 @@ layer {
   param { name: "fc7_b" lr_mult: 2 }
   inner_product_param {
     num_output: 4096   # TODO 1024
-    weight_filler { type: "msra" }
+    weight_filler { type: "gaussian" std: 0.01 }
     bias_filler { type: "constant" }
   }
 }
@@ -602,7 +602,7 @@ layer {
   param { name: "fc6_b" lr_mult: 2 }
   inner_product_param {
     num_output: 4096   # TODO 1024
-    weight_filler { type: "msra" }
+    weight_filler { type: "gaussian" std: 0.01 }
     bias_filler { type: "constant" }
   }
 }
@@ -621,7 +621,7 @@ layer {
   param { name: "fc7_b" lr_mult: 2 }
   inner_product_param {
     num_output: 4096   # TODO 1024
-    weight_filler { type: "msra" }
+    weight_filler { type: "gaussian" std: 0.01 }
     bias_filler { type: "constant" }
   }
 }
