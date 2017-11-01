@@ -23,8 +23,10 @@ from utils.blob import prep_im_for_blob, im_list_to_blob
 class RoIDataLayer(caffe.Layer):
     """Fast R-CNN data layer used for training."""
 
-    def set_roidb(self, roidb, init_cur=0, shuffle=True):
+    def set_roidb(self, roidb, gpu_rank=0, init_cur=0, shuffle=True):
         """Set the roidb to be used by this layer during training."""
+        npr.seed(gpu_rank)
+        self._gpu_rank = gpu_rank
         self._roidb = roidb
         self._shuffle_roidb_inds(init_cur, shuffle)
 
