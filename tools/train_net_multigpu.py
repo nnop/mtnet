@@ -16,6 +16,7 @@ from utils.logger import config_logger
 config_logger()
 
 def solve(gpus, uid, rank, solver_proto, roidb, weights=None, snapshot=None):
+    cfg.GPU_ID = gpus[rank]
     # setting for current process
     caffe.set_mode_gpu()
     caffe.set_device(gpus[rank])
@@ -24,6 +25,10 @@ def solve(gpus, uid, rank, solver_proto, roidb, weights=None, snapshot=None):
     caffe.set_multiprocess(True)
 
     solver = caffe.SGDSolver(solver_proto)
+    logging.info('uid: {}, rank: {}, layer_wise_reduce: {}'
+            .format(uid, rank, solver.param.layer_wise_reduce))
+    max_iter = solver.param.max_iter
+    snapshot_iters = solver.param.snapshot
     if snapshot:
         solver.restore(snapshot)
     if weights:
@@ -36,34 +41,32 @@ def solve(gpus, uid, rank, solver_proto, roidb, weights=None, snapshot=None):
         solver.net.after_backward(nccl)
     
     nccl.bcast()
-    max_iter = solver.param.max_iter
-    snapshot_iters = solver.param.snapshot
     curr_iter = solver.iter
-    while curr_iter < solver:
+    while curr_iter < max_iter:
         step_iters = snapshot_iters - curr_iter % snapshot_iters
         solver.step(step_iters)
         if rank == 0:
+            logging.info('curr_iter: {}, step_iters: {}'.format(curr_iter, step_iters))
             solver.snapshot()
             curr_iter += step_iters
 
 if __name__ == "__main__":
-    assert (cfg.TRAIN.HAS_RPN                \
-        and cfg.TRAIN.BBOX_REG               \
-        and cfg.TRAIN.BBOX_NORMALIZE_TARGETS \
-        and cfg.TRAIN.BBOX_NORMALIZE_TARGETS_PRECOMPUTED)
-
-    solver_proto = 'models/bodyhead/solver.prototxt'
+    solver_proto = 'models/multigpu/solver.prototxt'
     weights_file = 'data/imagenet_models/VGG16.v2.caffemodel'
     cfg_file = 'experiments/faster_rcnn_end2end.yml'
-    gpus = [0, 1]
+    gpus = [3, 4, 5, 6]
 
     # caffe
-    caffe.init_log()
+    caffe.init_log(0, True)
     caffe.log('Using device {}'.format(str(gpus)))
     uid = caffe.NCCL.new_uid()
 
     # cfg
     cfg_from_file(cfg_file)
+    assert (cfg.TRAIN.HAS_RPN                \
+        and cfg.TRAIN.BBOX_REG               \
+        and cfg.TRAIN.BBOX_NORMALIZE_TARGETS \
+        and cfg.TRAIN.BBOX_NORMALIZE_TARGETS_PRECOMPUTED)
 
     # roidb
     imdb_name = 'ftdata_train'
@@ -77,7 +80,7 @@ if __name__ == "__main__":
     for rank in range(len(gpus)):
         p = Process(target=solve,
                     args=(gpus, uid, rank, solver_proto, roidb, weights_file))
-        p.daemon = True
+        p.daemon = False
         p.start()
         procs.append(p)
 
