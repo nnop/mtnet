@@ -8,7 +8,7 @@ import numpy.random as npr
 import sys
 import caffe
 import cv2
-from IPython import embed
+import argparse
 
 sys.path.insert(0, 'lib')
 from fast_rcnn.config import cfg
@@ -18,6 +18,9 @@ from fast_rcnn.nms_wrapper import nms
 from datasets.ftdata import ftdata
 from utils.blob import im_list_to_blob
 from utils.logger import config_logger
+
+body_classes = ftdata._body_classes
+head_classes = ftdata._head_classes
 
 def show_box(ax, boxes, color=None, labels=None):
     assert boxes.shape[1] == 4
@@ -30,7 +33,7 @@ def show_box(ax, boxes, color=None, labels=None):
         if labels is not None:
             text_kwargs = dict(size='small', color='white',
                     bbox=dict(facecolor=c, alpha=0.5, pad=0.15))
-            ax.text(x1-2, y1-2, labels[i], **text_kwargs)
+            ax.text(x1-2, y1-2, labels[i][:2], **text_kwargs)
 
 def transform_boxes(rois, deltas):
     box_means = np.array(cfg.TRAIN.BBOX_NORMALIZE_MEANS)
@@ -41,15 +44,27 @@ def transform_boxes(rois, deltas):
 
 
 if __name__ == "__main__":
-    caffe.set_mode_gpu()
-    caffe.set_device(0)
 
-    proto_p = 'models/bodyhead/deploy.prototxt'
-    weights_p = 'output/bodyhead/vgg16_end2end_iter_70000.caffemodel.h5'
+    #
+    # parse arguments
+    #
+    parser = argparse.ArgumentParser()
+    parser.add_argument('--model')
+    parser.add_argument('--weights')
+    parser.add_argument('--output')
+    parser.add_argument('image_path')
+    args = parser.parse_args()
+
+    proto_p = args.model
+    weights_p = args.weights
+    im_p = args.image_path
+
+    caffe.set_device(0)
+    caffe.set_mode_gpu()
+    # create net
     net = caffe.Net(proto_p, weights_p, caffe.TEST)
 
     # forward
-    im_p = 'data/ftdata_small/JPEGImages/164_1154.jpg'
     im = cv2.imread(im_p)
     im_blobs, im_scales = _get_image_blob(im)
     info_blob = np.array(
@@ -68,6 +83,7 @@ if __name__ == "__main__":
     # boxes
     body_boxes = net.blobs['det_boxes-body'].data[body_inds, 1:] / im_scales[0]
     head_boxes = net.blobs['head_boxes-body'].data[:, 1:] / im_scales[0]
+
     # nms
     body_boxes = np.hstack(
             (body_roi_probs[body_inds, None], body_boxes)).astype(np.float32)
@@ -84,7 +100,9 @@ if __name__ == "__main__":
     head_pose_scores = net.blobs['pose_scores-head'].data[body_keep_inds]
     head_pose_labels = np.argmax(head_pose_scores, axis=1)
 
+    #
     # show
+    #
     im = im[..., [2, 1, 0]]
     plt.figure(figsize=(12, 8))
     plt.imshow(im)
@@ -92,8 +110,8 @@ if __name__ == "__main__":
     body_tags = []
     for stu, pose in zip(stu_labels, body_pose_labels):
         body_tags.append('{}-{}' \
-                .format('stu' if stu else 'parent', ftdata._body_classes[pose]))
+                .format('stu' if stu else 'parent', body_classes[pose]))
     show_box(ax, body_boxes, color='g', labels=body_tags)
-    head_tags = [ftdata._head_classes[i] for i in head_pose_labels]
+    head_tags = [head_classes[i] for i in head_pose_labels]
     show_box(ax, head_boxes, color='r', labels=head_tags)
     plt.savefig('out.png')
