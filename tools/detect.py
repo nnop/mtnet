@@ -9,6 +9,8 @@ import sys
 import caffe
 import cv2
 import argparse
+import logging
+import os.path as osp
 
 sys.path.insert(0, 'lib')
 from fast_rcnn.config import cfg
@@ -33,34 +35,46 @@ def show_box(ax, boxes, color=None, labels=None):
         if labels is not None:
             text_kwargs = dict(size='small', color='white',
                     bbox=dict(facecolor=c, alpha=0.5, pad=0.15))
-            ax.text(x1-2, y1-2, labels[i][:2], **text_kwargs)
-
-def transform_boxes(rois, deltas):
-    box_means = np.array(cfg.TRAIN.BBOX_NORMALIZE_MEANS)
-    box_stds = np.array(cfg.TRAIN.BBOX_NORMALIZE_STDS)
-    denorm_deltas = deltas * box_stds + box_means
-    boxes = bbox_transform_inv(rois, denorm_deltas)
-    return boxes
-
+            ax.text(x1-2, y1-2, labels[i], **text_kwargs)
 
 if __name__ == "__main__":
+    config_logger()
 
-    #
     # parse arguments
-    #
     parser = argparse.ArgumentParser()
-    parser.add_argument('--model')
-    parser.add_argument('--weights')
-    parser.add_argument('--output')
+    parser.add_argument('--model', type=str,
+            help='deploy prototxt file')
+    parser.add_argument('--weights', type=str,
+            help='model weights file')
+    parser.add_argument('--gpu', default=0, type=int,
+            help='gpu id, -1 for cpu')
+    parser.add_argument('--conf-thresh', default=0.6,
+            help='detection confidence threshold')
+    parser.add_argument('--nms-thresh', default=0.5,
+            help='detection nms threshold')
+    parser.add_argument('--save', type=str,
+            help='detection save path')
     parser.add_argument('image_path')
     args = parser.parse_args()
 
     proto_p = args.model
     weights_p = args.weights
+    gpu = args.gpu
     im_p = args.image_path
+    save_p = args.save
+    det_conf_thershold = args.conf_thresh
+    det_nms_threshold = args.nms_thresh
 
-    caffe.set_device(0)
-    caffe.set_mode_gpu()
+    assert osp.isfile(im_p), '{} not exists.'.format(im_p)
+
+    if gpu == -1:
+        logging.info('use cpu mode')
+        caffe.set_mode_cpu()
+    else:
+        logging.info('use gpu {}'.format(gpu))
+        caffe.set_device(gpu)
+        caffe.set_mode_gpu()
+
     # create net
     net = caffe.Net(proto_p, weights_p, caffe.TEST)
 
@@ -73,9 +87,6 @@ if __name__ == "__main__":
     net.blobs['data'].reshape(*(im_blobs.shape))
     net.blobs['im_info'].reshape(*(info_blob.shape))
     out_blobs = net.forward(data=im_blobs, im_info=info_blob)
-
-    det_conf_thershold = 0.6
-    det_nms_threshold = 0.5
 
     # probs
     body_roi_probs = net.blobs['det_probs-body'].data[:, 1]
@@ -100,9 +111,7 @@ if __name__ == "__main__":
     head_pose_scores = net.blobs['pose_scores-head'].data[body_keep_inds]
     head_pose_labels = np.argmax(head_pose_scores, axis=1)
 
-    #
     # show
-    #
     im = im[..., [2, 1, 0]]
     plt.figure(figsize=(12, 8))
     plt.imshow(im)
@@ -114,4 +123,5 @@ if __name__ == "__main__":
     show_box(ax, body_boxes, color='g', labels=body_tags)
     head_tags = [head_classes[i] for i in head_pose_labels]
     show_box(ax, head_boxes, color='r', labels=head_tags)
-    plt.savefig('out.png')
+    plt.savefig(save_p)
+    logging.info('result save to: '+save_p)
