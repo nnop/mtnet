@@ -1,6 +1,7 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 import logging
+import os 
 import os.path as osp
 import cv2
 import sys
@@ -21,6 +22,10 @@ from datasets.ftdata import ftdata
 
 body_classes = ftdata._body_classes
 head_classes = ftdata._head_classes
+
+def make_if_not_exists(d):
+    if d and not osp.isdir(d):
+        os.makedirs(d)
 
 def show_box(ax, boxes, color=None, labels=None):
     assert boxes.shape[1] == 4
@@ -487,6 +492,9 @@ if __name__ == "__main__":
         net = None 
     else:
         net = caffe.Net(model_proto, weights_path, caffe.TEST)
+
+    make_if_not_exists(vis_dir)
+    make_if_not_exists(det_dir)
 
     imdb = get_imdb(imdb_name)
     imdb.set_proposal_method('gt')
