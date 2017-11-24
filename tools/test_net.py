@@ -1,15 +1,17 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
+import matplotlib
+matplotlib.use('Agg')
+import matplotlib.pyplot as plt
 import logging
 import os 
 import os.path as osp
 import cv2
 import sys
-import caffe
 import numpy as np
-import matplotlib.pyplot as plt
 import json
 import argparse
+import caffe
 
 import _init_paths
 from datasets.factory import get_imdb
@@ -22,6 +24,8 @@ from datasets.ftdata import ftdata
 
 body_classes = ftdata._body_classes
 head_classes = ftdata._head_classes
+
+np.set_printoptions(suppress=True)
 
 def make_if_not_exists(d):
     if d and not osp.isdir(d):
@@ -314,7 +318,7 @@ def voc_eval(all_dets, gt_anno_dir):
     prec = tp / np.maximum(tp + fp, np.finfo(np.float64).eps)
     ap = voc_ap(rec, prec)
     logging.info('------ result ------')
-    logging.info('detection AP: {:.3f}'.format(ap))
+    logging.info('detection AP on {} samples: {:.3f}'.format(len(all_dets.keys()), ap))
 
     # compute body pose confusion matrix
     num_body_class = len(body_classes)
@@ -397,7 +401,7 @@ def voc_eval(all_dets, gt_anno_dir):
     logging.info('student accuracy: {:.2f}\n{}\n{}' \
             .format(stu_acc, ['parent', 'student'], stu_conf_mat))
 
-    return rec, prec, ap
+    return rec, prec, ap, body_conf_mat, head_conf_mat, stu_conf_mat
 
 def test_net(net, imdb, det_dir, gt_anno_dir, vis_dir='./',
         det_thresh=0.05, nms_thresh=0.5, vis=False):
@@ -431,8 +435,10 @@ def test_net(net, imdb, det_dir, gt_anno_dir, vis_dir='./',
             vis_detections(im_p, det_res, osp.join(vis_dir, im_name))
         logging.info('Processed {}/{}: {} detections\n{}' \
                 .format(i+1, num_images, n_person, im_p))
-    # evaluation
-    rec, prec, ap = voc_eval(all_dets, gt_anno_dir)
+
+    # evaluation and save
+    rec, prec, det_ap, body_conf_mat, head_conf_mat, stu_conf_mat \
+            = voc_eval(all_dets, gt_anno_dir)
     plt.plot(rec, prec)
     plt.title('detection precision/recall curve')
     plt.xlim([0, 1])
@@ -441,7 +447,19 @@ def test_net(net, imdb, det_dir, gt_anno_dir, vis_dir='./',
     plt.ylabel('precision')
     plot_save_p = osp.join(det_dir, 'prec_rec.pdf')
     plt.savefig(plot_save_p)
-    logging.info('precision/recall curve save to {}.'.format(plot_save_p))
+    logging.info('precision/recall curve save to '+plot_save_p)
+    # save body confusion matrix
+    body_confmat_save_p = osp.join(det_dir, 'body_conf_mat.npy')
+    np.save(body_confmat_save_p, body_conf_mat)
+    logging.info('body pose confusion matrix save to '+body_confmat_save_p)
+    # save head confusion matrix
+    head_confmat_save_p = osp.join(det_dir, 'head_conf_mat.npy')
+    np.save(head_confmat_save_p, head_conf_mat)
+    logging.info('head pose confusion matrix save to '+head_confmat_save_p)
+    # save stu confusion matrix
+    stu_confmat_save_p = osp.join(det_dir, 'stu_conf_mat.npy')
+    np.save(stu_confmat_save_p, stu_conf_mat)
+    logging.info('student/parent confusion matrix save to '+stu_confmat_save_p)
 
 if __name__ == "__main__":
     config_logger()
