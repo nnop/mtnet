@@ -487,6 +487,7 @@ if __name__ == "__main__":
         logging.info('use gpu {}'.format(gpu))
         caffe.set_device(gpu)
         caffe.set_mode_gpu()
+        cfg.GPU_ID = gpu
 
     if redo:
         net = None 

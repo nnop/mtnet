@@ -66,6 +66,7 @@ if __name__ == "__main__":
     det_nms_threshold = args.nms_thresh
 
     assert osp.isfile(im_p), '{} not exists.'.format(im_p)
+    cfg.HAS_RPN = True
 
     if gpu == -1:
         logging.info('use cpu mode')
@@ -74,6 +75,7 @@ if __name__ == "__main__":
         logging.info('use gpu {}'.format(gpu))
         caffe.set_device(gpu)
         caffe.set_mode_gpu()
+        cfg.GPU_ID = gpu
 
     # create net
     net = caffe.Net(proto_p, weights_p, caffe.TEST)
