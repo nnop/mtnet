@@ -1,5 +1,6 @@
 import caffe
 import numpy as np
+import json
 
 from fast_rcnn.config import cfg
 from fast_rcnn.bbox_transform import bbox_transform_inv
@@ -8,6 +9,15 @@ class BoxTransformLayer(caffe.Layer):
     def setup(self, bottom, top):
         assert len(bottom) == 2
         assert len(top) == 1
+
+        layer_params = {}
+        if self.param_str:
+            layer_params = json.loads(self.param_str)
+        self.bbox_normalize_means = layer_params.get('bbox_normalize_means',
+                cfg.TRAIN.BBOX_NORMALIZE_MEANS)
+        self.bbox_normalize_stds = layer_params.get('bbox_normalize_stds',
+                cfg.TRAIN.BBOX_NORMALIZE_STDS)
+
         boxes = bottom[0].data
         _dim = boxes.shape[1]
         assert _dim == 4 or _dim == 5
@@ -29,8 +39,8 @@ class BoxTransformLayer(caffe.Layer):
             boxes = boxes[:, 1:]
         deltas = bottom[1].data
 
-        box_means = np.array(cfg.TRAIN.BBOX_NORMALIZE_MEANS)
-        box_stds = np.array(cfg.TRAIN.BBOX_NORMALIZE_STDS)
+        box_means = np.array(self.bbox_normalize_means)
+        box_stds = np.array(self.bbox_normalize_stds)
         denorm_deltas = deltas * box_stds + box_means
         boxes_out = bbox_transform_inv(boxes, denorm_deltas)
         boxes_out = np.hstack((np.zeros((n_boxes, 1)), boxes_out))

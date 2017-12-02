@@ -28,6 +28,7 @@ class ProposalLayer(caffe.Layer):
         layer_params = json.loads(self.param_str)
 
         self._feat_stride = layer_params['feat_stride']
+        # has extra training targets, so to sample more rois
         self._has_extra = layer_params.get('has_extra', False)
         anchor_scales = layer_params.get('scales', (8, 16, 32))
         self._anchors = generate_anchors(scales=np.array(anchor_scales))
@@ -229,9 +230,9 @@ class ProposalLayer(caffe.Layer):
 
         # assign labels
         labels = np.empty((n_keep,), dtype=np.float32)
-        labels.fill(-1)
-        labels[:n_sel_pos] = 1
-        labels[n_sel_pos:] = 0
+        labels.fill(-1)             # ignore
+        labels[:n_sel_pos] = 1      # fg
+        labels[n_sel_pos:] = 0      # bg
 
         proposals = proposals[keep_inds].astype(np.float32)
         gt_assignment = np.empty((n_keep,), dtype = np.float32)

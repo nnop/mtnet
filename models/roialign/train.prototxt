@@ -748,6 +748,7 @@ layer {
   python_param {
     module: "rpn.box_target_layer"
     layer: "BoxTargetLayer"
+    param_str: '{"bbox_normalize_means": [0.0, -0.23825483, -0.85038573, -0.68897909]}'
   }
 }
 # loss
