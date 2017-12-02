@@ -69,7 +69,8 @@ def im_detect(net, im, det_thresh, nms_thresh):
     head_boxes = net.blobs['head_boxes-body'].data[keep_inds, 1:] / im_scales[0]
     head_boxes = clip_boxes(head_boxes, im.shape)
     # student labels
-    stu_labels = net.blobs['stu_scores-body'].data[keep_inds, 1] > 0.5
+    stu_labels = np.argmax(net.blobs['stu_scores-body'].data[keep_inds],
+            axis=1)
     # body pose labels
     body_pose_labels = np.argmax(net.blobs['pose_scores-body'].data[keep_inds],
             axis=1)
