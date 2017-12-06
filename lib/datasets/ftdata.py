@@ -155,7 +155,8 @@ class ftdata(imdb):
             body_label = obj['body']['label']
             if body_label in self._body_classes:
                 body_classes[ix] = self._body_classes.index(body_label)
-            body_boxes[ix, :] = obj['body']['bbox']
+            body_box = obj['body']['bbox']
+            body_boxes[ix, :] = body_box
             # head
             try:
                 head_label = obj['head']['label']
@@ -165,7 +166,12 @@ class ftdata(imdb):
             assert head_label in self._head_classes, \
                     'Wrong head label: {}'.format(head_label)
             head_classes[ix] = self._head_classes.index(head_label)
-            head_boxes[ix, :] = obj['head']['bbox']
+            head_box = obj['head']['bbox']
+            o_x = (head_box[0] + head_box[2]) / 2.
+            o_y = (head_box[1] + head_box[3]) / 2.
+            if body_box[0] < o_x < body_box[2] and \
+                    body_box[1] < o_y < body_box[3]:
+                head_boxes[ix, :] = head_box
             # clipboxes
             body_boxes = clip_boxes(body_boxes, (im_hei, im_wid))
             head_boxes = clip_boxes(head_boxes, (im_hei, im_wid))

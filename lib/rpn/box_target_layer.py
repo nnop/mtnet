@@ -5,26 +5,6 @@ import json
 from fast_rcnn.bbox_transform import bbox_transform
 from fast_rcnn.config import cfg
 
-def filter_valid(src_boxes, dst_boxes):
-    """
-    choose valid pairs:
-    1. dst boxes not [0, 0, 0, 0]
-    2. dst center in src boxes
-    """
-    cents = np.vstack((
-        (dst_boxes[:, 0] + dst_boxes[:, 2]) / 2,
-        (dst_boxes[:, 1] + dst_boxes[:, 3]) / 2,
-        )).T
-    valid_inds = np.where(
-            np.any(dst_boxes != 0., axis=1) & # not all zero
-            (cents[:, 0] > src_boxes[:, 0]) & # > x1
-            (cents[:, 0] < src_boxes[:, 2]) & # < x2
-            (cents[:, 1] > src_boxes[:, 1]) & # > y1
-            (cents[:, 1] < src_boxes[:, 3])   # < y1
-        )[0]
-    return valid_inds
-
-
 class BoxTargetLayer(caffe.Layer):
     def setup(self, bottom, top):
         """
@@ -82,7 +62,7 @@ class BoxTargetLayer(caffe.Layer):
             dst_boxes = np.zeros((num_rois, 4), dtype=np.float32)
             dst_boxes[pos_inds] = gt_boxes[gt_assignments[pos_inds]]
             # choose valid boxes
-            pos_sel_inds = filter_valid(rois_boxes, dst_boxes)
+            pos_sel_inds  = np.where(np.any(dst_boxes != 0., axis=1))[0]
             # targets
             targets = bbox_transform(rois_boxes[pos_sel_inds, 1:],
                     dst_boxes[pos_sel_inds])
